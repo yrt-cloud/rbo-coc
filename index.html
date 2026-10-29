@@ -1,0 +1,924 @@
+﻿
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Bon & Pengambilan Barang Unit Kerja</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* CSS Khusus Cetak & Export PDF (PASTI PAS 1 HALAMAN) */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 5mm 8mm; /* Margin sangat pas agar tidak terlipat ke halaman 2 */
+            }
+            html, body {
+                height: 100% !important;
+                overflow: hidden !important;
+                background: white !important;
+                color: black !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            /* Sembunyikan semua elemen di layar utama dan modal overlay */
+            body * {
+                visibility: hidden !important;
+            }
+            /* Hanya tampilkan area nota cetak */
+            #printable-area, #printable-area * {
+                visibility: visible !important;
+            }
+            #printable-area {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 10px !important;
+                border: none !important;
+                box-shadow: none !important;
+                background: white !important;
+                page-break-inside: avoid !important;
+                page-break-after: avoid !important;
+                page-break-before: avoid !important;
+                font-size: 11px !important;
+            }
+            /* Ringkaskan elemen agar hemat ruang di A4 */
+            #printable-area h2 {
+                font-size: 16px !important;
+                margin-bottom: 2px !important;
+            }
+            #printable-area table th, 
+            #printable-area table td {
+                padding: 4px 6px !important;
+                font-size: 10px !important;
+            }
+            .no-print { 
+                display: none !important; 
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 pb-12">
+
+    <!-- Header / Navbar -->
+    <header class="bg-indigo-700 text-white shadow-lg no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-file-invoice-dollar text-3xl text-indigo-200"></i>
+                <div>
+                    <h1 class="text-2xl font-bold leading-tight">PENGAMBILAN BARANG UNIT RBO - SKC</h1>
+                    <p class="text-xs text-indigo-200">Sistem Pencatatan Per-Bon & Validasi Pelunasan </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="exportBackupData()" class="text-xs bg-indigo-600 hover:bg-indigo-800 text-indigo-100 py-1.5 px-3 rounded-lg border border-indigo-500 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-download"></i> Cadangkan Data (Backup)
+                </button>
+                <button onclick="triggerRestoreFileInput()" class="text-xs bg-indigo-600 hover:bg-indigo-800 text-indigo-100 py-1.5 px-3 rounded-lg border border-indigo-500 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-upload"></i> Pulihkan Data (Restore)
+                </button>
+                <!-- Hidden file input for restore -->
+                <input type="file" id="input-restore-file" accept=".json" onchange="importRestoreData(event)" class="hidden">
+
+                <button onclick="resetDemoData()" class="text-xs bg-indigo-800 hover:bg-indigo-900 text-indigo-200 py-1.5 px-3 rounded-lg border border-indigo-600 transition flex items-center gap-1">
+                    <i class="fa-solid fa-rotate-right"></i> Reset
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+
+        <!-- Stat Cards / Metric Summary -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 no-print">
+            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-500 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Total Belum Lunas (Bon Aktif)</p>
+                    <h3 id="stat-total-bon" class="text-2xl font-bold text-amber-600 mt-1">Rp 0</h3>
+                    <p id="stat-count-bon" class="text-xs text-slate-400 mt-1">0 Dokumen Bon</p>
+                </div>
+                <div class="p-3 bg-amber-50 rounded-full text-amber-600">
+                    <i class="fa-solid fa-clock-rotate-left text-2xl"></i>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-emerald-500 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Total Sudah Lunas</p>
+                    <h3 id="stat-total-lunas" class="text-2xl font-bold text-emerald-600 mt-1">Rp 0</h3>
+                    <p id="stat-count-lunas" class="text-xs text-slate-400 mt-1">0 Dokumen Bon</p>
+                </div>
+                <div class="p-3 bg-emerald-50 rounded-full text-emerald-600">
+                    <i class="fa-solid fa-circle-check text-2xl"></i>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Keseluruhan Transaksi</p>
+                    <h3 id="stat-total-semua" class="text-2xl font-bold text-indigo-700 mt-1">Rp 0</h3>
+                    <p id="stat-count-semua" class="text-xs text-slate-400 mt-1">0 Dokumen Bon</p>
+                </div>
+                <div class="p-3 bg-indigo-50 rounded-full text-indigo-600">
+                    <i class="fa-solid fa-receipt text-2xl"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- FORM PENGAMBILAN BARANG PER BON (MULTIPLE ITEMS) -->
+            <div class="lg:col-span-5 bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit no-print">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-cart-plus text-indigo-600"></i> Buat Bon Pengambilan Baru
+                </h2>
+                
+                <form id="form-bon" onsubmit="simpanBonBaru(event)" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Unit Kerja <span class="text-red-500">*</span></label>
+                            <input type="text" id="unit_kerja" required placeholder="Contoh: Unit IT" 
+                                class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Tanggal Ambil <span class="text-red-500">*</span></label>
+                            <input type="date" id="tgl_ambil" required 
+                                class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Area Tambah Item Barang -->
+                    <div class="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                        <span class="block text-xs font-bold text-slate-700 mb-2">Input Item Barang:</span>
+                        <div class="space-y-2">
+                            <div>
+                                <input type="text" id="input_nama_barang" list="datalist_barang" oninput="autoFillHargaBarang()" placeholder="Nama Barang (Otomatis dari memori...)" 
+                                    class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+                                <datalist id="datalist_barang">
+                                    <!-- Injected dynamically from memory -->
+                                </datalist>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" id="input_harga_barang" min="0" placeholder="Harga Satuan (Rp)" 
+                                    class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+                                <input type="number" id="input_jumlah_barang" min="1" value="1" placeholder="Qty" 
+                                    class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                            <button type="button" onclick="tambahItemKeDraft()" 
+                                class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium py-1.5 rounded-lg transition flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-plus"></i> Tambah Item Ke Bon
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Daftar Item Sementara (Draft Bon) -->
+                    <div>
+                        <span class="block text-xs font-semibold text-slate-600 mb-1">Daftar Barang dalam Bon ini:</span>
+                        <div class="max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
+                            <table class="w-full text-left text-xs text-slate-600">
+                                <thead class="bg-slate-100 text-[10px] text-slate-500 uppercase">
+                                    <tr>
+                                        <th class="p-2">Barang</th>
+                                        <th class="p-2 text-center">Qty</th>
+                                        <th class="p-2 text-right">Subtotal</th>
+                                        <th class="p-2 text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="draft-items-body">
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-slate-400 italic">Belum ada barang dimasukkan.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Auto Calculated Total Bon -->
+                    <div class="p-3 bg-indigo-50 rounded-lg border border-indigo-100 flex justify-between items-center">
+                        <div class="text-xs text-indigo-700 font-medium">Total Nilai Bon:</div>
+                        <div id="display-total-bon" class="text-xl font-bold text-indigo-700">Rp 0</div>
+                    </div>
+
+                    <button type="submit" 
+                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg shadow-sm transition flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-floppy-disk"></i> Simpan Dokumen Bon
+                    </button>
+                </form>
+            </div>
+
+            <!-- TABEL DAFTAR BON -->
+            <div class="lg:col-span-7 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3 no-print">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-indigo-600"></i> Daftar Bon Pengambilan
+                    </h2>
+
+                    <!-- Filter Controls -->
+                    <div class="flex items-center gap-2">
+                        <select id="filter-status" onchange="renderTabelBon()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="SEMUA">Semua Status</option>
+                            <option value="BELUM">Belum Lunas (Bon)</option>
+                            <option value="LUNAS">Sudah Lunas</option>
+                        </select>
+                        <input type="text" id="filter-search" oninput="renderTabelBon()" placeholder="Cari No.Bon / Unit..." 
+                            class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="overflow-x-auto mt-4">
+                    <table class="w-full text-left text-xs text-slate-600 border-collapse">
+                        <thead class="bg-slate-50 text-slate-700 uppercase font-semibold text-[11px] border-b border-slate-200">
+                            <tr>
+                                <th class="p-3">No. Bon / Unit</th>
+                                <th class="p-3">Tgl Ambil</th>
+                                <th class="p-3 text-center">Item</th>
+                                <th class="p-3 text-right">Total Bon</th>
+                                <th class="p-3 text-center">Status</th>
+                                <th class="p-3 text-center no-print">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabel-bon-body" class="divide-y divide-slate-100">
+                            <!-- Injected by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MODAL DETAIL BON & CETAK / PDF -->
+    <div id="modal-detail" class="fixed inset-0 bg-slate-900/60 hidden backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 relative max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200 no-print">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-receipt text-indigo-600"></i> Detail Dokumen Bon
+                </h3>
+                <button onclick="closeModalDetail()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Area Printable Content -->
+            <div id="printable-area" class="overflow-y-auto my-2 p-4 border border-slate-200 rounded-lg bg-white">
+                <div class="text-center pb-2 mb-2 border-b border-slate-300">
+                    <h2 class="text-lg font-bold text-slate-900 uppercase tracking-wide">BON PENGAMBILAN BARANG</h2>
+                    <p id="view-no-bon" class="text-xs font-semibold text-indigo-700 mt-0.5">BON-00000</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+                    <div>
+                        <span class="text-slate-500 block text-[11px]">Unit Kerja Pengambil:</span>
+                        <strong id="view-unit" class="text-xs text-slate-800"></strong>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-slate-500 block text-[11px]">Tanggal Pengambilan:</span>
+                        <strong id="view-tgl-ambil" class="text-xs text-slate-800"></strong>
+                    </div>
+                </div>
+
+                <!-- Table Item Bon -->
+                <table class="w-full text-left text-xs text-slate-700 border border-slate-300 mb-3">
+                    <thead class="bg-slate-100 uppercase text-[10px] border-b border-slate-300">
+                        <tr>
+                            <th class="p-1.5 border-r border-slate-300 text-center">No</th>
+                            <th class="p-1.5 border-r border-slate-300">Nama Barang</th>
+                            <th class="p-1.5 text-right border-r border-slate-300">Harga Satuan</th>
+                            <th class="p-1.5 text-center border-r border-slate-300">Jumlah</th>
+                            <th class="p-1.5 text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="view-table-items" class="divide-y divide-slate-200">
+                        <!-- Items -->
+                    </tbody>
+                    <tfoot class="bg-slate-50 font-bold border-t border-slate-300">
+                        <tr>
+                            <td colspan="4" class="p-1.5 text-right border-r border-slate-300">TOTAL TAGIHAN:</td>
+                            <td id="view-total-bayar" class="p-1.5 text-right text-indigo-800"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <!-- Status & Pelunasan Section -->
+                <div class="border border-slate-200 p-2 rounded bg-slate-50 mb-3 text-xs">
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-500 text-[11px]">Status Pembayaran:</span>
+                        <span id="view-badge-status"></span>
+                    </div>
+                    <div id="view-detail-pelunasan" class="hidden mt-1.5 pt-1.5 border-t border-slate-200 space-y-0.5 text-[11px]">
+                        <div class="flex justify-between"><span class="text-slate-500">Tanggal Pelunasan:</span> <span id="view-tgl-lunas" class="font-semibold"></span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Nama Penanggung Jawab / Pembayar:</span> <span id="view-pembayar" class="font-semibold"></span></div>
+                    </div>
+                </div>
+
+                <!-- Tanda Tangan Print -->
+                <div class="grid grid-cols-2 gap-4 text-center text-xs pt-1 mt-2 border-t border-slate-200">
+                    <div>
+                        <p class="mb-8 text-slate-500 text-[11px]">Pengambil (Unit Kerja)</p>
+                        <p class="font-bold underline text-slate-800">( ..................................... )</p>
+                    </div>
+                    <div>
+                        <p class="mb-8 text-slate-500 text-[11px]">Petugas / Kasir</p>
+                        <p class="font-bold underline text-slate-800">( ..................................... )</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-2 no-print">
+                <button onclick="closeModalDetail()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium transition">
+                    Tutup
+                </button>
+                <div class="flex gap-2">
+                    <button id="btn-modal-bayar" onclick="triggerPelunasanFromDetail()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition flex items-center gap-1">
+                        <i class="fa-solid fa-money-bill-wave"></i> Bayar Lunas
+                    </button>
+                    <button onclick="cetakBonPDF()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition flex items-center gap-1 shadow-sm">
+                        <i class="fa-solid fa-print"></i> Cetak Bon / Simpan PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL VALIDASI PELUNASAN BON -->
+    <div id="modal-pelunasan" class="fixed inset-0 bg-slate-900/60 hidden backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
+            <h3 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-file-invoice-dollar text-emerald-600"></i> Validasi Pelunasan Bon
+            </h3>
+            <p class="text-xs text-slate-500 mb-4">Masukkan detail pelunasan untuk menandai Bon ini LUNAS.</p>
+
+            <input type="hidden" id="modal-id-bon">
+
+            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs mb-4 space-y-1">
+                <div class="flex justify-between"><span class="text-slate-500">No. Bon:</span> <span id="modal-nobon" class="font-bold text-slate-800"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Unit Kerja:</span> <span id="modal-unit-pelunasan" class="font-semibold text-slate-700"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Total Tagihan Bon:</span> <span id="modal-total-pelunasan" class="font-bold text-indigo-700"></span></div>
+            </div>
+
+            <form onsubmit="simpanPelunasan(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tanggal Bayar / Pelunasan <span class="text-red-500">*</span></label>
+                    <input type="date" id="tgl_lunas" required 
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Pembayar / Penanggung Jawab <span class="text-red-500">*</span></label>
+                    <input type="text" id="nama_pembayar" required placeholder="Nama staf yang melakukan pembayaran" 
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeModalPelunasan()" 
+                        class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium transition">
+                        Batal
+                    </button>
+                    <button type="submit" 
+                        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-sm transition flex items-center gap-1">
+                        <i class="fa-solid fa-check"></i> Konfirmasi Lunas
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg text-xs transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-2 z-50">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toast-message">Notifikasi berhasil</span>
+    </div>
+
+    <!-- Script Logic -->
+    <script>
+        const STORAGE_KEY = 'BON_BARANG_PER_DOKUMEN_V2';
+        const ITEM_MEMORY_KEY = 'BON_BARANG_ITEM_CATALOG_V1';
+
+        let daftarBon = [];
+        let draftItems = [];
+        let catalogBarang = {}; // Store { "Nama Barang": Harga }
+        let activeBonIdView = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tgl_ambil').value = today;
+            document.getElementById('tgl_lunas').value = today;
+            
+            loadData();
+            loadCatalog();
+        });
+
+        // Load & Save Catalog Barang
+        function loadCatalog() {
+            const catStr = localStorage.getItem(ITEM_MEMORY_KEY);
+            if (catStr) {
+                try {
+                    catalogBarang = JSON.parse(catStr);
+                } catch(e) {
+                    catalogBarang = {};
+                }
+            } else {
+                // Default initial memory catalogue
+                catalogBarang = {
+                    "Spidol Whiteboard (Pack)": 60000,
+                    "Tinta Refill": 15000,
+                    "Kertas HVS A4 80gr (Box)": 250000,
+                    "Kertas HVS F4 70gr (Box)": 240000,
+                    "Map Snelhepter": 5000,
+                    "Pulpen Gel Black (Pack)": 35000,
+                    "Baterai AA (Pack)": 25000
+                };
+                saveCatalog();
+            }
+            renderDatalistBarang();
+        }
+
+        function saveCatalog() {
+            localStorage.setItem(ITEM_MEMORY_KEY, JSON.stringify(catalogBarang));
+        }
+
+        function updateCatalogItem(nama, harga) {
+            if (!nama || harga <= 0) return;
+            // Save or update catalog memory
+            catalogBarang[nama] = harga;
+            saveCatalog();
+            renderDatalistBarang();
+        }
+
+        function renderDatalistBarang() {
+            const datalist = document.getElementById('datalist_barang');
+            datalist.innerHTML = Object.keys(catalogBarang).map(nama => 
+                `<option value="${escapeHtml(nama)}">Rp ${catalogBarang[nama].toLocaleString('id-ID')}</option>`
+            ).join('');
+        }
+
+        // Auto fill price when selecting an item from the datalist/memory
+        function autoFillHargaBarang() {
+            const inputNama = document.getElementById('input_nama_barang').value.trim();
+            if (catalogBarang[inputNama] !== undefined) {
+                document.getElementById('input_harga_barang').value = catalogBarang[inputNama];
+            }
+        }
+
+        function formatRupiah(angka) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(angka);
+        }
+
+        function formatTanggal(strTanggal) {
+            if(!strTanggal) return '-';
+            const opsi = { year: 'numeric', month: 'short', day: 'numeric' };
+            return new Date(strTanggal).toLocaleDateString('id-ID', opsi);
+        }
+
+        // Add Item to Temporary Draft Bon
+        function tambahItemKeDraft() {
+            const nama = document.getElementById('input_nama_barang').value.trim();
+            const harga = parseFloat(document.getElementById('input_harga_barang').value) || 0;
+            const qty = parseInt(document.getElementById('input_jumlah_barang').value) || 0;
+
+            if (!nama) {
+                alert('Silakan isi nama barang!');
+                return;
+            }
+            if (harga <= 0 || qty <= 0) {
+                alert('Harga dan Jumlah barang harus lebih dari 0!');
+                return;
+            }
+
+            // Save to catalog memory for future auto-complete
+            updateCatalogItem(nama, harga);
+
+            draftItems.push({
+                nama_barang: nama,
+                harga_barang: harga,
+                jumlah: qty,
+                subtotal: harga * qty
+            });
+
+            // Reset Item Form
+            document.getElementById('input_nama_barang').value = '';
+            document.getElementById('input_harga_barang').value = '';
+            document.getElementById('input_jumlah_barang').value = '1';
+
+            renderDraftTable();
+        }
+
+        function hapusDraftItem(index) {
+            draftItems.splice(index, 1);
+            renderDraftTable();
+        }
+
+        function renderDraftTable() {
+            const tbody = document.getElementById('draft-items-body');
+            let grandTotal = 0;
+
+            if (draftItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-400 italic">Belum ada barang dimasukkan.</td></tr>`;
+                document.getElementById('display-total-bon').innerText = 'Rp 0';
+                return;
+            }
+
+            tbody.innerHTML = draftItems.map((item, idx) => {
+                grandTotal += item.subtotal;
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-2 font-medium text-slate-700">${escapeHtml(item.nama_barang)}</td>
+                        <td class="p-2 text-center text-slate-500">${item.jumlah}</td>
+                        <td class="p-2 text-right font-semibold text-slate-700">${formatRupiah(item.subtotal)}</td>
+                        <td class="p-2 text-center">
+                            <button type="button" onclick="hapusDraftItem(${idx})" class="text-red-500 hover:text-red-700">
+                                <i class="fa-solid fa-times"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('display-total-bon').innerText = formatRupiah(grandTotal);
+        }
+
+        // Save Completed Bon Document
+        function simpanBonBaru(e) {
+            e.preventDefault();
+
+            if (draftItems.length === 0) {
+                alert('Mohon tambahkan setidaknya 1 item barang ke dalam bon!');
+                return;
+            }
+
+            const unit = document.getElementById('unit_kerja').value.trim();
+            const tglAmbil = document.getElementById('tgl_ambil').value;
+            const totalBon = draftItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+            const documentId = 'BON-' + Math.floor(100000 + Math.random() * 900000);
+
+            const bonBaru = {
+                id: documentId,
+                unit_kerja: unit,
+                tgl_ambil: tglAmbil,
+                items: [...draftItems],
+                total_bon: totalBon,
+                status: 'BELUM',
+                tgl_lunas: null,
+                nama_pembayar: null
+            };
+
+            daftarBon.unshift(bonBaru);
+            saveData();
+            renderTabelBon();
+            updateStats();
+
+            // Reset Complete Form
+            document.getElementById('form-bon').reset();
+            draftItems = [];
+            renderDraftTable();
+            document.getElementById('tgl_ambil').value = new Date().toISOString().split('T')[0];
+
+            showToast('Dokumen Bon berhasil diterbitkan!');
+        }
+
+        // Render Table of Bons
+        function renderTabelBon() {
+            const tbody = document.getElementById('tabel-bon-body');
+            const filterStatus = document.getElementById('filter-status').value;
+            const filterSearch = document.getElementById('filter-search').value.toLowerCase();
+
+            let filtered = daftarBon.filter(b => {
+                const matchStatus = filterStatus === 'SEMUA' || b.status === filterStatus;
+                const matchSearch = b.id.toLowerCase().includes(filterSearch) || 
+                                    b.unit_kerja.toLowerCase().includes(filterSearch);
+                return matchStatus && matchSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center py-8 text-slate-400">
+                            <i class="fa-solid fa-folder-open text-3xl mb-2 block"></i>
+                            Tidak ditemukan dokumen bon yang sesuai.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(bon => {
+                const isLunas = bon.status === 'LUNAS';
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3">
+                            <div class="font-bold text-slate-800">${bon.id}</div>
+                            <div class="text-[11px] text-slate-500">${escapeHtml(bon.unit_kerja)}</div>
+                        </td>
+                        <td class="p-3 text-slate-600">${formatTanggal(bon.tgl_ambil)}</td>
+                        <td class="p-3 text-center">
+                            <span class="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-medium text-slate-600">${bon.items.length} Barang</span>
+                        </td>
+                        <td class="p-3 text-right font-bold text-slate-800">${formatRupiah(bon.total_bon)}</td>
+                        <td class="p-3 text-center">
+                            ${isLunas ? 
+                                `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">LUNAS</span>` : 
+                                `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">BON</span>`
+                            }
+                        </td>
+                        <td class="p-3 text-center no-print">
+                            <div class="flex justify-center items-center gap-1.5">
+                                <button onclick="openModalDetail('${bon.id}')" title="Lihat & Cetak PDF" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 p-1.5 rounded transition">
+                                    <i class="fa-solid fa-print"></i>
+                                </button>
+                                ${!isLunas ? `
+                                    <button onclick="openModalPelunasan('${bon.id}')" title="Bayar Lunas" class="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded transition">
+                                        <i class="fa-solid fa-money-bill-wave"></i>
+                                    </button>
+                                ` : ''}
+                                <button onclick="hapusBon('${bon.id}')" title="Hapus Bon" class="text-slate-400 hover:text-red-600 p-1.5 transition">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Open Printable Modal Detail
+        function openModalDetail(id) {
+            const bon = daftarBon.find(b => b.id === id);
+            if (!bon) return;
+
+            activeBonIdView = bon.id;
+
+            document.getElementById('view-no-bon').innerText = bon.id;
+            document.getElementById('view-unit').innerText = bon.unit_kerja;
+            document.getElementById('view-tgl-ambil').innerText = formatTanggal(bon.tgl_ambil);
+            document.getElementById('view-total-bayar').innerText = formatRupiah(bon.total_bon);
+
+            const itemsTbody = document.getElementById('view-table-items');
+            itemsTbody.innerHTML = bon.items.map((item, idx) => `
+                <tr>
+                    <td class="p-1.5 border-r border-slate-300 text-center">${idx + 1}</td>
+                    <td class="p-1.5 border-r border-slate-300">${escapeHtml(item.nama_barang)}</td>
+                    <td class="p-1.5 border-r border-slate-300 text-right">${formatRupiah(item.harga_barang)}</td>
+                    <td class="p-1.5 border-r border-slate-300 text-center">${item.jumlah}</td>
+                    <td class="p-1.5 text-right font-semibold">${formatRupiah(item.subtotal)}</td>
+                </tr>
+            `).join('');
+
+            const badgeStatus = document.getElementById('view-badge-status');
+            const detailPelunasan = document.getElementById('view-detail-pelunasan');
+            const btnBayar = document.getElementById('btn-modal-bayar');
+
+            if (bon.status === 'LUNAS') {
+                badgeStatus.innerHTML = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">LUNAS</span>`;
+                detailPelunasan.classList.remove('hidden');
+                document.getElementById('view-tgl-lunas').innerText = formatTanggal(bon.tgl_lunas);
+                document.getElementById('view-pembayar').innerText = bon.nama_pembayar;
+                btnBayar.classList.add('hidden');
+            } else {
+                badgeStatus.innerHTML = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">BELUM LUNAS (BON)</span>`;
+                detailPelunasan.classList.add('hidden');
+                btnBayar.classList.remove('hidden');
+            }
+
+            document.getElementById('modal-detail').classList.remove('hidden');
+        }
+
+        // Fungsi Khusus Cetak agar tidak terbagi 2 halaman
+        function cetakBonPDF() {
+            window.print();
+        }
+
+        function closeModalDetail() {
+            document.getElementById('modal-detail').classList.add('hidden');
+        }
+
+        function triggerPelunasanFromDetail() {
+            closeModalDetail();
+            openModalPelunasan(activeBonIdView);
+        }
+
+        // Open Payment Modal
+        function openModalPelunasan(id) {
+            const bon = daftarBon.find(b => b.id === id);
+            if (!bon) return;
+
+            document.getElementById('modal-id-bon').value = bon.id;
+            document.getElementById('modal-nobon').innerText = bon.id;
+            document.getElementById('modal-unit-pelunasan').innerText = bon.unit_kerja;
+            document.getElementById('modal-total-pelunasan').innerText = formatRupiah(bon.total_bon);
+
+            document.getElementById('modal-pelunasan').classList.remove('hidden');
+        }
+
+        function closeModalPelunasan() {
+            document.getElementById('modal-pelunasan').classList.add('hidden');
+        }
+
+        // Process Payment Validation
+        function simpanPelunasan(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('modal-id-bon').value;
+            const tglLunas = document.getElementById('tgl_lunas').value;
+            const pembayar = document.getElementById('nama_pembayar').value.trim();
+
+            const idx = daftarBon.findIndex(b => b.id === id);
+            if (idx !== -1) {
+                daftarBon[idx].status = 'LUNAS';
+                daftarBon[idx].tgl_lunas = tglLunas;
+                daftarBon[idx].nama_pembayar = pembayar;
+
+                saveData();
+                renderTabelBon();
+                updateStats();
+                closeModalPelunasan();
+
+                showToast(`Bon ${id} berhasil dilunasi!`);
+            }
+        }
+
+        function hapusBon(id) {
+            if (confirm(`Apakah Anda yakin ingin menghapus seluruh Dokumen ${id}?`)) {
+                daftarBon = daftarBon.filter(b => b.id !== id);
+                saveData();
+                renderTabelBon();
+                updateStats();
+                showToast('Dokumen Bon telah dihapus.');
+            }
+        }
+
+        function updateStats() {
+            let totalBon = 0, countBon = 0;
+            let totalLunas = 0, countLunas = 0;
+
+            daftarBon.forEach(b => {
+                if (b.status === 'LUNAS') {
+                    totalLunas += b.total_bon;
+                    countLunas++;
+                } else {
+                    totalBon += b.total_bon;
+                    countBon++;
+                }
+            });
+
+            document.getElementById('stat-total-bon').innerText = formatRupiah(totalBon);
+            document.getElementById('stat-count-bon').innerText = `${countBon} Dokumen Bon Belum Bayar`;
+
+            document.getElementById('stat-total-lunas').innerText = formatRupiah(totalLunas);
+            document.getElementById('stat-count-lunas').innerText = `${countLunas} Dokumen Bon Lunas`;
+
+            document.getElementById('stat-total-semua').innerText = formatRupiah(totalBon + totalLunas);
+            document.getElementById('stat-count-semua').innerText = `${daftarBon.length} Total Dokumen Bon`;
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(daftarBon));
+        }
+
+        function loadData() {
+            const dataStr = localStorage.getItem(STORAGE_KEY);
+            if (dataStr) {
+                try {
+                    daftarBon = JSON.parse(dataStr);
+                } catch(e) {
+                    daftarBon = [];
+                }
+            } else {
+                // Sample initial Multi-item Bon
+                daftarBon = [
+                    {
+                        id: 'BON-102938',
+                        unit_kerja: 'Divisi Pemasaran',
+                        tgl_ambil: '2023-10-20',
+                        items: [
+                            { nama_barang: 'Spidol Whiteboard (Pack)', harga_barang: 60000, jumlah: 2, subtotal: 120000 },
+                            { nama_barang: 'Tinta Refill', harga_barang: 15000, jumlah: 2, subtotal: 30000 }
+                        ],
+                        total_bon: 150000,
+                        status: 'LUNAS',
+                        tgl_lunas: '2023-10-25',
+                        nama_pembayar: 'Budi Santoso'
+                    },
+                    {
+                        id: 'BON-492019',
+                        unit_kerja: 'Unit Keuangan',
+                        tgl_ambil: '2023-10-28',
+                        items: [
+                            { nama_barang: 'Kertas HVS A4 80gr (Box)', harga_barang: 250000, jumlah: 2, subtotal: 500000 }
+                        ],
+                        total_bon: 500000,
+                        status: 'BELUM',
+                        tgl_lunas: null,
+                        nama_pembayar: null
+                    }
+                ];
+                saveData();
+            }
+            renderTabelBon();
+            updateStats();
+        }
+
+        function resetDemoData() {
+            if (confirm('Atur ulang seluruh data ke contoh awal?')) {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(ITEM_MEMORY_KEY);
+                loadData();
+                loadCatalog();
+                showToast('Data berhasil di-reset.');
+            }
+        }
+
+        // ==========================================
+        // FITUR BACKUP DAN RESTORE DATA (JSON)
+        // ==========================================
+        function exportBackupData() {
+            const dataToBackup = {
+                version: "2.0",
+                backup_date: new Date().toISOString(),
+                daftarBon: daftarBon,
+                catalogBarang: catalogBarang
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToBackup, null, 2));
+            const downloadAnchor = document.createElement('a');
+            const fileName = `Backup_Bon_Barang_${new Date().toISOString().split('T')[0]}.json`;
+
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", fileName);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+
+            showToast('File cadangan (Backup) berhasil diunduh!');
+        }
+
+        function triggerRestoreFileInput() {
+            document.getElementById('input-restore-file').click();
+        }
+
+        function importRestoreData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsedData = JSON.parse(e.target.result);
+                    
+                    if (parsedData.daftarBon && Array.isArray(parsedData.daftarBon)) {
+                        daftarBon = parsedData.daftarBon;
+                        saveData();
+                    }
+
+                    if (parsedData.catalogBarang && typeof parsedData.catalogBarang === 'object') {
+                        catalogBarang = parsedData.catalogBarang;
+                        saveCatalog();
+                    }
+
+                    renderTabelBon();
+                    updateStats();
+                    renderDatalistBarang();
+
+                    showToast('Data berhasil dipulihkan (Restore)!');
+                } catch (err) {
+                    alert('Format file JSON backup tidak valid atau rusak!');
+                }
+            };
+
+            reader.readAsText(file);
+            // Reset input value so user can upload same file again if needed
+            event.target.value = '';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
