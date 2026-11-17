@@ -18,7 +18,7 @@
         @media print {
             @page {
                 size: A4 portrait;
-                margin: 5mm 8mm; /* Margin sangat pas agar tidak terlipat ke halaman 2 */
+                margin: 5mm 8mm;
             }
             html, body {
                 height: 100% !important;
@@ -41,8 +41,12 @@
             body.print-mode-monthly #printable-area-bulanan * {
                 visibility: visible !important;
             }
+            body.print-mode-pelunasan #printable-area-pelunasan, 
+            body.print-mode-pelunasan #printable-area-pelunasan * {
+                visibility: visible !important;
+            }
 
-            #printable-area, #printable-area-bulanan {
+            #printable-area, #printable-area-bulanan, #printable-area-pelunasan {
                 position: fixed !important;
                 left: 0 !important;
                 top: 0 !important;
@@ -59,14 +63,16 @@
                 font-size: 11px !important;
             }
             /* Ringkaskan elemen agar hemat ruang di A4 */
-            #printable-area h2, #printable-area-bulanan h2 {
+            #printable-area h2, #printable-area-bulanan h2, #printable-area-pelunasan h2 {
                 font-size: 16px !important;
                 margin-bottom: 2px !important;
             }
             #printable-area table th, 
             #printable-area table td,
             #printable-area-bulanan table th,
-            #printable-area-bulanan table td {
+            #printable-area-bulanan table td,
+            #printable-area-pelunasan table th,
+            #printable-area-pelunasan table td {
                 padding: 4px 6px !important;
                 font-size: 10px !important;
             }
@@ -89,6 +95,11 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
+                <!-- Tombol Menu Pelunasan Harian Per Unit (BARU) -->
+                <button onclick="bukaModalRekapPelunasan()" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 px-3 rounded-lg border border-emerald-400 transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-money-check-dollar"></i> Pelunasan Per Unit
+                </button>
+
                 <!-- Tombol Laporan Bulanan diletakkan di Navbar Utama -->
                 <button onclick="bukaModalFilterLaporanBulanan()" class="text-xs bg-indigo-800 hover:bg-indigo-900 text-white py-1.5 px-3 rounded-lg border border-indigo-500 transition flex items-center gap-1.5 shadow-sm">
                     <i class="fa-solid fa-file-invoice"></i> Laporan Bulanan
@@ -103,7 +114,7 @@
                 <!-- Hidden file input for restore -->
                 <input type="file" id="input-restore-file" accept=".json" onchange="importRestoreData(event)" class="hidden">
 
-                <button onclick="resetDemoData()" class="text-xs bg-indigo-800 hover:bg-indigo-900 text-indigo-200 py-1.5 px-3 rounded-lg border border-indigo-600 transition flex items-center gap-1">
+                <button onclick="bukaModalConfirm('Apakah Anda yakin ingin mengembalikan data ke sampel awal? Semua data baru akan hilang!', () => { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(ITEM_MEMORY_KEY); location.reload(); })" class="text-xs bg-indigo-800 hover:bg-indigo-900 text-indigo-200 py-1.5 px-3 rounded-lg border border-indigo-600 transition flex items-center gap-1">
                     <i class="fa-solid fa-rotate-right"></i> Reset
                 </button>
             </div>
@@ -160,8 +171,9 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Unit Kerja <span class="text-red-500">*</span></label>
-                            <input type="text" id="unit_kerja" required placeholder="Contoh: Unit IT" 
+                            <input type="text" id="unit_kerja" list="datalist_unit" required placeholder="Contoh: RBO / COC CASH" 
                                 class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <datalist id="datalist_unit"></datalist>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Tanggal Ambil <span class="text-red-500">*</span></label>
@@ -183,9 +195,7 @@
                             <div>
                                 <input type="text" id="input_nama_barang" list="datalist_barang" oninput="autoFillHargaBarang()" placeholder="Nama Barang (Otomatis dari memori...)" 
                                     class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-                                <datalist id="datalist_barang">
-                                    <!-- Injected dynamically from memory -->
-                                </datalist>
+                                <datalist id="datalist_barang"></datalist>
                             </div>
                             <div class="grid grid-cols-2 gap-2">
                                 <input type="number" id="input_harga_barang" min="0" placeholder="Harga Satuan (Rp)" 
@@ -243,13 +253,16 @@
                     </h2>
 
                     <!-- Filter Controls -->
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="filter-unit-main" onchange="renderTabelBon()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="SEMUA">Semua Unit</option>
+                        </select>
                         <select id="filter-status" onchange="renderTabelBon()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <option value="SEMUA">Semua Status</option>
                             <option value="BELUM">Belum Lunas (Bon)</option>
                             <option value="LUNAS">Sudah Lunas</option>
                         </select>
-                        <input type="text" id="filter-search" oninput="renderTabelBon()" placeholder="Cari No.Bon / Unit / Pengambil..." 
+                        <input type="text" id="filter-search" oninput="renderTabelBon()" placeholder="Cari No.Bon / Pengambil..." 
                             class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
                 </div>
@@ -276,6 +289,32 @@
 
         </div>
 
+        <!-- MENU REKAP PELUNASAN HARIAN PER UNIT (BARU - RINGKASAN CEPAT DI HALAMAN UTAMA) -->
+        <div class="mt-8 bg-white p-6 rounded-xl shadow-sm border border-emerald-200 no-print">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-100 gap-3 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-money-check-dollar text-emerald-600"></i> Rekap Pelunasan Harian Per Unit Kerja
+                    </h2>
+                    <p class="text-xs text-slate-500">Otomatis tercatat saat bon dilunasi. Pilih tanggal & unit untuk melihat atau mencetak bukti pelunasan.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <input type="date" id="quick-tgl-pelunasan" onchange="renderQuickRekapPelunasan()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <select id="quick-unit-pelunasan" onchange="renderQuickRekapPelunasan()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="SEMUA">Semua Unit Kerja</option>
+                    </select>
+                    <button onclick="bukaModalRekapPelunasanDenganFilter()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-print"></i> Cetak Bukti Pelunasan
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grid Kartu Pelunasan Per Unit pada Tanggal Terpilih -->
+            <div id="grid-rekap-pelunasan-harian" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Injected by JS -->
+            </div>
+        </div>
+
         <!-- MENU KALKULASI REKAPITULASI PER UNIT KERJA (30 HARI TERAKHIR) -->
         <div class="mt-8 bg-white p-6 rounded-xl shadow-sm border border-slate-200 no-print">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-100 gap-2 mb-4">
@@ -297,6 +336,107 @@
 
     </main>
 
+    <!-- MODAL REKAP PELUNASAN PER TANGGAL & PER UNIT (UNTUK DICETAK UNTUK PEMBAYAR) -->
+    <div id="modal-rekap-pelunasan" class="fixed inset-0 bg-slate-900/60 hidden backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 relative max-h-[92vh] flex flex-col">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200 no-print">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-money-check-dollar text-emerald-600"></i> Bukti & Daftar Pelunasan Bon Per Unit
+                </h3>
+                <button onclick="closeModalRekapPelunasan()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Filter Bar di dalam Modal Pelunasan -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 my-3 p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg no-print">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tanggal Pelunasan:</label>
+                    <input type="date" id="modal-pelunasan-tgl" onchange="renderIsiModalPelunasan()" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Unit Kerja:</label>
+                    <select id="modal-pelunasan-unit" onchange="renderIsiModalPelunasan()" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="SEMUA">-- Semua Unit Kerja --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Filter Nama Pembayar (Opsional):</label>
+                    <input type="text" id="modal-pelunasan-pembayar" oninput="renderIsiModalPelunasan()" placeholder="Semua pembayar..." class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+            </div>
+
+            <!-- Printable Area Bukti Pelunasan -->
+            <div id="printable-area-pelunasan" class="overflow-y-auto my-1 p-5 border border-slate-200 rounded-lg bg-white">
+                <div class="text-center pb-3 mb-3 border-b-2 border-slate-800">
+                    <h2 class="text-lg font-bold text-slate-900 uppercase tracking-wide">TANDA TERIMA & RINCIAN PELUNASAN BON</h2>
+                    <p id="cetak-pelunasan-subjudul" class="text-xs font-semibold text-emerald-700 mt-1">TANGGAL PELUNASAN: - | UNIT: SEMUA UNIT</p>
+                </div>
+
+                <!-- Ringkasan Jumlah Bon & Total Nominal Dilunasi -->
+                <div class="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded border border-slate-300 mb-4 text-xs">
+                    <div>
+                        <span class="text-slate-500 block text-[10px]">Unit Kerja / Pembayar:</span>
+                        <strong id="cetak-pelunasan-info-unit" class="text-slate-800 font-bold text-sm">-</strong>
+                    </div>
+                    <div class="text-center border-x border-slate-200">
+                        <span class="text-slate-500 block text-[10px]">Jumlah Dokumen Bon Dilunasi:</span>
+                        <strong id="cetak-pelunasan-jumlah-bon" class="text-emerald-700 font-bold text-sm">0 Bon</strong>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-slate-500 block text-[10px]">Total Uang Pelunasan:</span>
+                        <strong id="cetak-pelunasan-total-uang" class="text-indigo-800 font-bold text-sm">Rp 0</strong>
+                    </div>
+                </div>
+
+                <!-- Tabel Bon yang Dilunasi pada Tanggal Tersebut -->
+                <table class="w-full text-left text-xs text-slate-700 border border-slate-300 mb-4">
+                    <thead class="bg-slate-100 uppercase text-[10px] border-b border-slate-300 font-bold">
+                        <tr>
+                            <th class="p-1.5 border-r border-slate-300 text-center w-8">No</th>
+                            <th class="p-1.5 border-r border-slate-300">No. Bon</th>
+                            <th class="p-1.5 border-r border-slate-300">Tgl Ambil</th>
+                            <th class="p-1.5 border-r border-slate-300">Unit / Pengambil</th>
+                            <th class="p-1.5 border-r border-slate-300">Rincian Barang</th>
+                            <th class="p-1.5 border-r border-slate-300">Pembayar</th>
+                            <th class="p-1.5 text-right">Nominal Lunas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cetak-pelunasan-table-body" class="divide-y divide-slate-200">
+                        <!-- Injected by JS -->
+                    </tbody>
+                    <tfoot class="bg-slate-100 font-bold border-t border-slate-300">
+                        <tr>
+                            <td colspan="6" class="p-2 text-right border-r border-slate-300">TOTAL PELUNASAN DITERIMA (<span id="cetak-pelunasan-footer-count">0</span> BON):</td>
+                            <td id="cetak-pelunasan-grand-total" class="p-2 text-right text-emerald-700">Rp 0</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <!-- Tanda Tangan Bukti Pelunasan -->
+                <div class="grid grid-cols-2 gap-4 text-center text-xs pt-2 mt-4 border-t border-slate-200">
+                    <div>
+                        <p class="mb-10 text-slate-500 text-[11px]">Yang Menyerahkan / Pembayar</p>
+                        <p id="cetak-pelunasan-ttd-pembayar" class="font-bold underline text-slate-800">( ..................................... )</p>
+                    </div>
+                    <div>
+                        <p class="mb-10 text-slate-500 text-[11px]">Penerima / Petugas Kasir</p>
+                        <p class="font-bold underline text-slate-800">( ..................................... )</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-3 no-print">
+                <button onclick="closeModalRekapPelunasan()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium transition">
+                    Tutup
+                </button>
+                <button onclick="cetakBuktiPelunasanPDF()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-print"></i> Cetak Bukti Pelunasan / Simpan PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL FILTER SEBELUM CETAK LAPORAN BULANAN -->
     <div id="modal-filter-laporan" class="fixed inset-0 bg-slate-900/60 hidden backdrop-blur-sm flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
@@ -315,7 +455,6 @@
                     <label class="block text-xs font-semibold text-slate-600 mb-1">Pilih Unit Kerja</label>
                     <select id="filter-unit-laporan" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="SEMUA">-- Semua Unit Kerja --</option>
-                        <!-- Injected dynamically by JS -->
                     </select>
                 </div>
 
@@ -516,7 +655,7 @@
             <h3 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
                 <i class="fa-solid fa-file-invoice-dollar text-emerald-600"></i> Validasi Pelunasan Bon
             </h3>
-            <p class="text-xs text-slate-500 mb-4">Masukkan detail pelunasan untuk menandai Bon ini LUNAS.</p>
+            <p class="text-xs text-slate-500 mb-4">Masukkan detail pelunasan untuk menandai Bon ini LUNAS dan otomatis masuk ke daftar pelunasan harian unit.</p>
 
             <input type="hidden" id="modal-id-bon">
 
@@ -539,6 +678,13 @@
                         class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                 </div>
 
+                <div class="flex items-center gap-2 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+                    <input type="checkbox" id="cetak_langsung_setelah_lunas" class="rounded text-emerald-600 focus:ring-emerald-500">
+                    <label for="cetak_langsung_setelah_lunas" class="text-xs text-emerald-800 font-medium cursor-pointer">
+                        Langsung buka bukti cetak pelunasan unit setelah simpan
+                    </label>
+                </div>
+
                 <div class="flex justify-end space-x-2 pt-2">
                     <button type="button" onclick="closeModalPelunasan()" 
                         class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium transition">
@@ -550,6 +696,21 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- CUSTOM CONFIRMATION MODAL (PENGGANTI confirm() BROWSER) -->
+    <div id="modal-confirm" class="fixed inset-0 bg-slate-900/60 hidden backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+            <div class="flex items-center gap-3 text-amber-600 mb-3">
+                <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+                <h3 class="text-base font-bold text-slate-800">Konfirmasi Tindakan</h3>
+            </div>
+            <p id="confirm-message" class="text-xs text-slate-600 mb-5 leading-relaxed">Apakah Anda yakin?</p>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModalConfirm()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium transition">Batal</button>
+                <button id="btn-confirm-yes" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-medium transition">Ya, Lanjutkan</button>
+            </div>
         </div>
     </div>
 
@@ -566,10 +727,10 @@
 
         let daftarBon = [];
         let draftItems = [];
-        let catalogBarang = {}; // Store { "Nama Barang": Harga }
+        let catalogBarang = {};
         let activeBonIdView = null;
+        let confirmCallback = null;
 
-        // Helper function to sanitize user inputs and prevent HTML injection/errors
         function escapeHtml(str) {
             if (!str) return '';
             return String(str)
@@ -585,13 +746,41 @@
             document.getElementById('tgl_ambil').value = today;
             document.getElementById('tgl_lunas').value = today;
             document.getElementById('filter-bulan-laporan').value = today.substring(0, 7);
+            document.getElementById('quick-tgl-pelunasan').value = today;
+            document.getElementById('modal-pelunasan-tgl').value = today;
 
             loadDataFromStorage();
             loadCatalogFromStorage();
             renderDatalistBarang();
+            refreshAllViews();
+        });
+
+        function refreshAllViews() {
+            populateAllUnitDropdowns();
             renderTabelBon();
+            renderQuickRekapPelunasan();
             renderRekapUnit30Hari();
-            populateUnitDropdownLaporan();
+        }
+
+        // ----------------------------------------------------
+        // CUSTOM CONFIRM MODAL
+        // ----------------------------------------------------
+        function bukaModalConfirm(message, callback) {
+            document.getElementById('confirm-message').innerText = message;
+            confirmCallback = callback;
+            document.getElementById('modal-confirm').classList.remove('hidden');
+        }
+
+        function closeModalConfirm() {
+            document.getElementById('modal-confirm').classList.add('hidden');
+            confirmCallback = null;
+        }
+
+        document.getElementById('btn-confirm-yes').addEventListener('click', () => {
+            if (typeof confirmCallback === 'function') {
+                confirmCallback();
+            }
+            closeModalConfirm();
         });
 
         // ----------------------------------------------------
@@ -606,7 +795,7 @@
                     daftarBon = [];
                 }
             } else {
-                // Initial Sample Data if Empty
+                const today = new Date().toISOString().split('T')[0];
                 daftarBon = [
                     {
                         id: 'BON-605884',
@@ -630,9 +819,9 @@
                             { namaBarang: 'Lakbang Bening 2"', harga: 12500, qty: 6, subtotal: 75000 }
                         ],
                         totalBayar: 75000,
-                        status: 'BELUM',
-                        tglLunas: '',
-                        pembayar: ''
+                        status: 'LUNAS',
+                        tglLunas: today,
+                        pembayar: 'Sobari'
                     },
                     {
                         id: 'BON-429563',
@@ -650,16 +839,6 @@
                 ];
                 saveDataToStorage();
             }
-        }
-
-        // Modal Filter Control Laporan Bulanan
-        function bukaModalFilterLaporanBulanan() {
-            populateUnitDropdownLaporan();
-            document.getElementById('modal-filter-laporan').classList.remove('hidden');
-        }
-
-        function closeModalFilterLaporan() {
-            document.getElementById('modal-filter-laporan').classList.add('hidden');
         }
 
         function saveDataToStorage() {
@@ -707,6 +886,43 @@
         }
 
         // ----------------------------------------------------
+        // POPULATE DROPDOWNS & DATALIST UNIT
+        // ----------------------------------------------------
+        function populateAllUnitDropdowns() {
+            const units = [...new Set(daftarBon.map(b => b.unitKerja).filter(Boolean))].sort();
+
+            // Datalist input form
+            const datalistUnit = document.getElementById('datalist_unit');
+            datalistUnit.innerHTML = units.map(u => `<option value="${escapeHtml(u)}">`).join('');
+
+            // Filter Unit di Tabel Utama
+            const filterUnitMain = document.getElementById('filter-unit-main');
+            const prevMain = filterUnitMain.value;
+            filterUnitMain.innerHTML = `<option value="SEMUA">Semua Unit</option>` +
+                units.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+            if (units.includes(prevMain)) filterUnitMain.value = prevMain;
+
+            // Filter Unit di Quick Rekap Pelunasan
+            const quickUnitPelunasan = document.getElementById('quick-unit-pelunasan');
+            const prevQuick = quickUnitPelunasan.value;
+            quickUnitPelunasan.innerHTML = `<option value="SEMUA">Semua Unit Kerja</option>` +
+                units.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+            if (units.includes(prevQuick)) quickUnitPelunasan.value = prevQuick;
+
+            // Filter Unit di Modal Rekap Pelunasan
+            const modalUnitPelunasan = document.getElementById('modal-pelunasan-unit');
+            const prevModalPel = modalUnitPelunasan.value;
+            modalUnitPelunasan.innerHTML = `<option value="SEMUA">-- Semua Unit Kerja --</option>` +
+                units.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+            if (units.includes(prevModalPel)) modalUnitPelunasan.value = prevModalPel;
+
+            // Filter Unit di Laporan Bulanan
+            const selectBulanan = document.getElementById('filter-unit-laporan');
+            selectBulanan.innerHTML = `<option value="SEMUA">-- Semua Unit Kerja --</option>` +
+                units.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+        }
+
+        // ----------------------------------------------------
         // DRAFT ITEM HANDLING (BUAT BON BARU)
         // ----------------------------------------------------
         function tambahItemKeDraft() {
@@ -727,7 +943,6 @@
                 return;
             }
 
-            // Save/Update item to memory catalog
             catalogBarang[nama] = harga;
             saveCatalogToStorage();
             renderDatalistBarang();
@@ -740,7 +955,6 @@
                 subtotal: subtotal
             });
 
-            // Reset Item Inputs
             namaInput.value = '';
             hargaInput.value = '';
             qtyInput.value = '1';
@@ -810,15 +1024,12 @@
             daftarBon.unshift(bonBaru);
             saveDataToStorage();
 
-            // Reset form
             draftItems = [];
             renderDraftItems();
             document.getElementById('unit_kerja').value = '';
             document.getElementById('nama_pengambil').value = '';
             
-            renderTabelBon();
-            renderRekapUnit30Hari();
-            populateUnitDropdownLaporan();
+            refreshAllViews();
             showToast(`Bon ${newBonId} berhasil disimpan!`);
         }
 
@@ -826,19 +1037,21 @@
         // TABEL MAIN & FILTER LOGIC
         // ----------------------------------------------------
         function renderTabelBon() {
+            const filterUnit = document.getElementById('filter-unit-main').value;
             const filterStatus = document.getElementById('filter-status').value;
             const filterSearch = document.getElementById('filter-search').value.toLowerCase().trim();
 
             const filtered = daftarBon.filter(item => {
+                const matchUnit = (filterUnit === 'SEMUA') || (item.unitKerja === filterUnit);
                 const matchStatus = (filterStatus === 'SEMUA') || (item.status === filterStatus);
                 const matchSearch = (item.id.toLowerCase().includes(filterSearch)) ||
                                     (item.unitKerja.toLowerCase().includes(filterSearch)) ||
                                     ((item.namaPengambil || '').toLowerCase().includes(filterSearch));
-                return matchStatus && matchSearch;
+                return matchUnit && matchStatus && matchSearch;
             });
 
-            // Update Header Stats based on filterSearch query
-            updateDynamicStats(filterSearch);
+            // Update Header Stats berdasarkan filter unit & pencarian
+            updateDynamicStats(filterUnit, filterSearch);
 
             const tbody = document.getElementById('tabel-bon-body');
 
@@ -850,7 +1063,8 @@
             tbody.innerHTML = filtered.map(item => {
                 const isLunas = item.status === 'LUNAS';
                 const badgeStatus = isLunas 
-                    ? `<span class="px-2.5 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-full inline-block">LUNAS</span>`
+                    ? `<span class="px-2.5 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-full inline-block">LUNAS</span>
+                       <span class="block text-[9px] text-emerald-600 mt-0.5">${formatTanggal(item.tglLunas)}</span>`
                     : `<span class="px-2.5 py-1 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full inline-block whitespace-nowrap">BELUM LUNAS</span>`;
 
                 const namaPengambilText = item.namaPengambil 
@@ -877,7 +1091,11 @@
                                     <button onclick="bukaModalPelunasan('${item.id}')" title="Validasi Lunas" class="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition">
                                         <i class="fa-solid fa-circle-check"></i>
                                     </button>
-                                ` : ''}
+                                ` : `
+                                    <button onclick="lihatBuktiPelunasanBon('${item.id}')" title="Lihat Bukti Pelunasan Tanggal Ini" class="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
+                                        <i class="fa-solid fa-receipt"></i>
+                                    </button>
+                                `}
                                 <button onclick="hapusBon('${item.id}')" title="Hapus" class="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition">
                                     <i class="fa-solid fa-trash-can"></i>
                                 </button>
@@ -888,10 +1106,15 @@
             }).join('');
         }
 
-        function updateDynamicStats(searchQuery = '') {
-            const list = searchQuery 
-                ? daftarBon.filter(b => b.unitKerja.toLowerCase().includes(searchQuery) || b.id.toLowerCase().includes(searchQuery) || (b.namaPengambil || '').toLowerCase().includes(searchQuery))
-                : daftarBon;
+        function updateDynamicStats(filterUnit = 'SEMUA', searchQuery = '') {
+            const list = daftarBon.filter(b => {
+                const matchUnit = (filterUnit === 'SEMUA') || (b.unitKerja === filterUnit);
+                const matchSearch = !searchQuery || 
+                    b.unitKerja.toLowerCase().includes(searchQuery) || 
+                    b.id.toLowerCase().includes(searchQuery) || 
+                    (b.namaPengambil || '').toLowerCase().includes(searchQuery);
+                return matchUnit && matchSearch;
+            });
 
             let totalBon = 0, countBon = 0;
             let totalLunas = 0, countLunas = 0;
@@ -917,14 +1140,183 @@
         }
 
         function hapusBon(id) {
-            if (confirm(`Apakah Anda yakin ingin menghapus Dokumen ${id}?`)) {
+            bukaModalConfirm(`Apakah Anda yakin ingin menghapus Dokumen ${id}?`, () => {
                 daftarBon = daftarBon.filter(item => item.id !== id);
                 saveDataToStorage();
-                renderTabelBon();
-                renderRekapUnit30Hari();
-                populateUnitDropdownLaporan();
+                refreshAllViews();
                 showToast(`Dokumen ${id} telah dihapus.`);
+            });
+        }
+
+        // ----------------------------------------------------
+        // FITUR PELUNASAN HARIAN PER UNIT (REKAP & CETAK)
+        // ----------------------------------------------------
+        function renderQuickRekapPelunasan() {
+            const tglFilter = document.getElementById('quick-tgl-pelunasan').value;
+            const unitFilter = document.getElementById('quick-unit-pelunasan').value;
+            const grid = document.getElementById('grid-rekap-pelunasan-harian');
+
+            const bonLunas = daftarBon.filter(b => {
+                if (b.status !== 'LUNAS') return false;
+                const matchTgl = !tglFilter || b.tglLunas === tglFilter;
+                const matchUnit = (unitFilter === 'SEMUA') || (b.unitKerja === unitFilter);
+                return matchTgl && matchUnit;
+            });
+
+            if (bonLunas.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-slate-400 text-xs">
+                        Belum ada transaksi pelunasan bon pada tanggal <strong>${formatTanggal(tglFilter)}</strong>${unitFilter !== 'SEMUA' ? ' untuk unit ' + escapeHtml(unitFilter) : ''}.
+                    </div>`;
+                return;
             }
+
+            // Kelompokkan berdasarkan Unit Kerja pada tanggal tersebut
+            const groupedByUnit = {};
+            bonLunas.forEach(bon => {
+                if (!groupedByUnit[bon.unitKerja]) {
+                    groupedByUnit[bon.unitKerja] = {
+                        unitKerja: bon.unitKerja,
+                        jumlahBon: 0,
+                        totalNominal: 0,
+                        pembayarSet: new Set(),
+                        bonIds: []
+                    };
+                }
+                groupedByUnit[bon.unitKerja].jumlahBon += 1;
+                groupedByUnit[bon.unitKerja].totalNominal += bon.totalBayar;
+                if (bon.pembayar) groupedByUnit[bon.unitKerja].pembayarSet.add(bon.pembayar);
+                groupedByUnit[bon.unitKerja].bonIds.push(bon.id);
+            });
+
+            grid.innerHTML = Object.values(groupedByUnit).map(data => {
+                const pembayarList = Array.from(data.pembayarSet).join(', ') || '-';
+                return `
+                    <div class="bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-200 p-4 rounded-xl transition shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start gap-2 mb-2">
+                                <h4 class="font-bold text-slate-800 text-sm truncate">${escapeHtml(data.unitKerja)}</h4>
+                                <span class="text-[11px] font-bold bg-emerald-600 text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                                    ${data.jumlahBon} Bon Lunas
+                                </span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mb-2">
+                                <i class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i> Tgl Lunas: <strong>${formatTanggal(tglFilter)}</strong>
+                            </p>
+                            <p class="text-[11px] text-slate-600 truncate mb-3">
+                                <i class="fa-solid fa-user-check text-slate-400 mr-1"></i> Pembayar: ${escapeHtml(pembayarList)}
+                            </p>
+                        </div>
+                        <div class="pt-2 border-t border-emerald-200/80 flex items-center justify-between">
+                            <div>
+                                <span class="block text-[10px] text-slate-500">Total Dilunasi</span>
+                                <span class="font-bold text-emerald-700 text-sm">Rp ${data.totalNominal.toLocaleString('id-ID')}</span>
+                            </div>
+                            <button onclick="bukaBuktiPelunasanSpesifik('${tglFilter}', '${escapeHtml(data.unitKerja)}')" 
+                                class="px-2.5 py-1.5 bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 rounded-lg text-[11px] font-semibold transition flex items-center gap-1 shadow-xs">
+                                <i class="fa-solid fa-print"></i> Cetak
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function bukaModalRekapPelunasan() {
+            populateAllUnitDropdowns();
+            document.getElementById('modal-pelunasan-pembayar').value = '';
+            renderIsiModalPelunasan();
+            document.getElementById('modal-rekap-pelunasan').classList.remove('hidden');
+        }
+
+        function bukaModalRekapPelunasanDenganFilter() {
+            const tgl = document.getElementById('quick-tgl-pelunasan').value;
+            const unit = document.getElementById('quick-unit-pelunasan').value;
+            bukaBuktiPelunasanSpesifik(tgl, unit);
+        }
+
+        function bukaBuktiPelunasanSpesifik(tgl, unit) {
+            populateAllUnitDropdowns();
+            document.getElementById('modal-pelunasan-tgl').value = tgl;
+            document.getElementById('modal-pelunasan-unit').value = unit;
+            document.getElementById('modal-pelunasan-pembayar').value = '';
+            renderIsiModalPelunasan();
+            document.getElementById('modal-rekap-pelunasan').classList.remove('hidden');
+        }
+
+        function lihatBuktiPelunasanBon(bonId) {
+            const bon = daftarBon.find(b => b.id === bonId);
+            if (!bon || bon.status !== 'LUNAS') return;
+            bukaBuktiPelunasanSpesifik(bon.tglLunas, bon.unitKerja);
+        }
+
+        function closeModalRekapPelunasan() {
+            document.getElementById('modal-rekap-pelunasan').classList.add('hidden');
+        }
+
+        function renderIsiModalPelunasan() {
+            const tgl = document.getElementById('modal-pelunasan-tgl').value;
+            const unit = document.getElementById('modal-pelunasan-unit').value;
+            const pembayarQuery = document.getElementById('modal-pelunasan-pembayar').value.toLowerCase().trim();
+
+            const listLunas = daftarBon.filter(bon => {
+                if (bon.status !== 'LUNAS') return false;
+                const matchTgl = !tgl || bon.tglLunas === tgl;
+                const matchUnit = (unit === 'SEMUA') || (bon.unitKerja === unit);
+                const matchPembayar = !pembayarQuery || (bon.pembayar || '').toLowerCase().includes(pembayarQuery);
+                return matchTgl && matchUnit && matchPembayar;
+            });
+
+            const tglText = tgl ? formatTanggal(tgl).toUpperCase() : 'SEMUA TANGGAL';
+            const unitText = unit !== 'SEMUA' ? unit.toUpperCase() : 'SEMUA UNIT KERJA';
+
+            document.getElementById('cetak-pelunasan-subjudul').innerText = `TANGGAL PELUNASAN: ${tglText} | UNIT: ${unitText}`;
+            document.getElementById('cetak-pelunasan-info-unit').innerText = unit !== 'SEMUA' ? unit : 'Semua Unit Kerja';
+
+            const tbody = document.getElementById('cetak-pelunasan-table-body');
+            let totalNominal = 0;
+            const pembayarSet = new Set();
+
+            if (listLunas.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">Tidak ada data pelunasan bon pada tanggal dan unit yang dipilih.</td></tr>`;
+            } else {
+                tbody.innerHTML = listLunas.map((bon, idx) => {
+                    totalNominal += bon.totalBayar;
+                    if (bon.pembayar) pembayarSet.add(bon.pembayar);
+                    const rincianBarang = bon.items.map(i => `${escapeHtml(i.namaBarang)} (${i.qty}x)`).join(', ');
+
+                    return `
+                        <tr>
+                            <td class="p-1.5 border-r border-slate-300 text-center">${idx + 1}</td>
+                            <td class="p-1.5 border-r border-slate-300 font-semibold whitespace-nowrap">${escapeHtml(bon.id)}</td>
+                            <td class="p-1.5 border-r border-slate-300 whitespace-nowrap">${formatTanggal(bon.tglAmbil)}</td>
+                            <td class="p-1.5 border-r border-slate-300">
+                                <span class="font-semibold">${escapeHtml(bon.unitKerja)}</span>
+                                <span class="block text-[10px] text-slate-500">Pengambil: ${escapeHtml(bon.namaPengambil || '-')}</span>
+                            </td>
+                            <td class="p-1.5 border-r border-slate-300">${rincianBarang}</td>
+                            <td class="p-1.5 border-r border-slate-300 font-medium">${escapeHtml(bon.pembayar || '-')}</td>
+                            <td class="p-1.5 text-right font-bold text-slate-800 whitespace-nowrap">Rp ${bon.totalBayar.toLocaleString('id-ID')}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            document.getElementById('cetak-pelunasan-jumlah-bon').innerText = `${listLunas.length} Dokumen Bon`;
+            document.getElementById('cetak-pelunasan-total-uang').innerText = `Rp ${totalNominal.toLocaleString('id-ID')}`;
+            document.getElementById('cetak-pelunasan-footer-count').innerText = listLunas.length;
+            document.getElementById('cetak-pelunasan-grand-total').innerText = `Rp ${totalNominal.toLocaleString('id-ID')}`;
+
+            const daftarPembayar = Array.from(pembayarSet);
+            document.getElementById('cetak-pelunasan-ttd-pembayar').innerText = daftarPembayar.length === 1 
+                ? `( ${daftarPembayar[0]} )` 
+                : '( ..................................... )';
+        }
+
+        function cetakBuktiPelunasanPDF() {
+            document.body.classList.remove('print-mode-single', 'print-mode-monthly');
+            document.body.classList.add('print-mode-pelunasan');
+            window.print();
         }
 
         // ----------------------------------------------------
@@ -987,13 +1379,13 @@
         }
 
         function cetakBonSinglePDF() {
-            document.body.classList.remove('print-mode-monthly');
+            document.body.classList.remove('print-mode-monthly', 'print-mode-pelunasan');
             document.body.classList.add('print-mode-single');
             window.print();
         }
 
         function cetakLaporanBulananPDF() {
-            document.body.classList.remove('print-mode-single');
+            document.body.classList.remove('print-mode-single', 'print-mode-pelunasan');
             document.body.classList.add('print-mode-monthly');
             window.print();
         }
@@ -1009,7 +1401,8 @@
             document.getElementById('modal-nobon').innerText = bon.id;
             document.getElementById('modal-unit-pelunasan').innerText = bon.unitKerja;
             document.getElementById('modal-total-pelunasan').innerText = `Rp ${bon.totalBayar.toLocaleString('id-ID')}`;
-            document.getElementById('nama_pembayar').value = '';
+            document.getElementById('nama_pembayar').value = bon.namaPengambil || '';
+            document.getElementById('cetak_langsung_setelah_lunas').checked = false;
 
             document.getElementById('modal-pelunasan').classList.remove('hidden');
         }
@@ -1023,18 +1416,26 @@
             const id = document.getElementById('modal-id-bon').value;
             const tglLunas = document.getElementById('tgl_lunas').value;
             const pembayar = document.getElementById('nama_pembayar').value.trim();
+            const langsungCetak = document.getElementById('cetak_langsung_setelah_lunas').checked;
 
             const bonIndex = daftarBon.findIndex(b => b.id === id);
             if (bonIndex !== -1) {
+                const unitKerjaBon = daftarBon[bonIndex].unitKerja;
                 daftarBon[bonIndex].status = 'LUNAS';
                 daftarBon[bonIndex].tglLunas = tglLunas;
                 daftarBon[bonIndex].pembayar = pembayar;
 
                 saveDataToStorage();
                 closeModalPelunasan();
-                renderTabelBon();
-                renderRekapUnit30Hari();
-                showToast(`Pelunasan Dokumen ${id} berhasil dicatat!`);
+
+                // Sinkronkan filter quick rekap pelunasan ke tanggal lunas yang baru diinput
+                document.getElementById('quick-tgl-pelunasan').value = tglLunas;
+                refreshAllViews();
+                showToast(`Pelunasan Dokumen ${id} (${unitKerjaBon}) berhasil dicatat!`);
+
+                if (langsungCetak) {
+                    bukaBuktiPelunasanSpesifik(tglLunas, unitKerjaBon);
+                }
             }
         }
 
@@ -1104,24 +1505,26 @@
         }
 
         function filterSearchByUnit(unitName) {
-            document.getElementById('filter-search').value = unitName;
+            document.getElementById('filter-unit-main').value = unitName;
+            document.getElementById('filter-search').value = '';
             renderTabelBon();
-            window.scrollTo({ top: 400, behavior: 'smooth' });
+            window.scrollTo({ top: 350, behavior: 'smooth' });
         }
 
         // ----------------------------------------------------
         // REKAPITULASI & LAPORAN BULANAN PER UNIT
         // ----------------------------------------------------
-        function populateUnitDropdownLaporan() {
-            const select = document.getElementById('filter-unit-laporan');
-            const units = [...new Set(daftarBon.map(b => b.unitKerja))];
+        function bukaModalFilterLaporanBulanan() {
+            populateAllUnitDropdowns();
+            document.getElementById('modal-filter-laporan').classList.remove('hidden');
+        }
 
-            select.innerHTML = `<option value="SEMUA">-- Semua Unit Kerja --</option>` +
-                units.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+        function closeModalFilterLaporan() {
+            document.getElementById('modal-filter-laporan').classList.add('hidden');
         }
 
         function bukaLaporanBulanan() {
-            const bulanThn = document.getElementById('filter-bulan-laporan').value; // format YYYY-MM
+            const bulanThn = document.getElementById('filter-bulan-laporan').value;
             const unitPilihan = document.getElementById('filter-unit-laporan').value;
 
             if (!bulanThn) {
@@ -1248,7 +1651,6 @@
                         return;
                     }
 
-                    // Mapping fleksibel: mendukung key snake_case (unit_kerja, nama_pengambil, total_bon, dll) maupun camelCase
                     daftarBon = rawDaftarBon.map(bon => {
                         const itemsMapped = Array.isArray(bon.items) ? bon.items.map(item => ({
                             namaBarang: item.namaBarang || item.nama_barang || 'Barang',
@@ -1280,9 +1682,7 @@
                     saveCatalogToStorage();
 
                     renderDatalistBarang();
-                    renderTabelBon();
-                    renderRekapUnit30Hari();
-                    populateUnitDropdownLaporan();
+                    refreshAllViews();
 
                     showToast("Data dari file JSON berhasil dipulihkan!");
                 } catch (err) {
@@ -1296,15 +1696,7 @@
             };
 
             reader.readAsText(file, 'UTF-8');
-            event.target.value = ''; // Reset input file
-        }
-
-        function resetDemoData() {
-            if (confirm("Apakah Anda yakin ingin mengembalikan data ke sampel awal? Semua data baru akan hilang!")) {
-                localStorage.removeItem(STORAGE_KEY);
-                localStorage.removeItem(ITEM_MEMORY_KEY);
-                location.reload();
-            }
+            event.target.value = '';
         }
 
         // ----------------------------------------------------
@@ -1312,6 +1704,11 @@
         // ----------------------------------------------------
         function formatTanggal(strDate) {
             if (!strDate) return '-';
+            const parts = strDate.split('-');
+            if (parts.length === 3) {
+                const date = new Date(parts[0], parts[1] - 1, parts[2]);
+                return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+            }
             const date = new Date(strDate);
             return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
         }
