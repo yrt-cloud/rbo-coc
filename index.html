@@ -443,10 +443,10 @@
             <h3 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
                 <i class="fa-solid fa-calendar-check text-indigo-600"></i> Rekapitulasi Laporan Bulanan
             </h3>
-            <p class="text-xs text-slate-500 mb-4">Pilih periode bulan dan unit kerja untuk menampilkan laporan.</p>
+            <p class="text-xs text-slate-500 mb-4">Pilih periode bulan, unit kerja, dan status pembayaran untuk menampilkan laporan.</p>
 
             <div class="space-y-4">
-                <div>
+                <div id="wrapper-bulan-laporan">
                     <label class="block text-xs font-semibold text-slate-600 mb-1">Pilih Bulan & Tahun <span class="text-red-500">*</span></label>
                     <input type="month" id="filter-bulan-laporan" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
@@ -456,6 +456,18 @@
                     <select id="filter-unit-laporan" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="SEMUA">-- Semua Unit Kerja --</option>
                     </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Status Pembayaran</label>
+                    <select id="filter-status-laporan" onchange="toggleInputBulanLaporan()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="SEMUA">-- Semua Status (Per Bulan Ambil) --</option>
+                        <option value="BELUM">Belum Lunas (Semua Bulan / Global)</option>
+                        <option value="LUNAS">Sudah Lunas (Per Bulan Lunas)</option>
+                    </select>
+                    <p id="info-filter-status-laporan" class="hidden text-[11px] text-amber-600 mt-1.5 font-medium">
+                        <i class="fa-solid fa-circle-info mr-1"></i> Menampilkan seluruh dokumen bon yang belum lunas dari semua bulan.
+                    </p>
                 </div>
 
                 <div class="flex justify-end space-x-2 pt-2">
@@ -485,7 +497,7 @@
             <!-- Printable Area Laporan Bulanan -->
             <div id="printable-area-bulanan" class="overflow-y-auto my-2 p-4 border border-slate-200 rounded-lg bg-white">
                 <div class="text-center pb-3 mb-3 border-b border-slate-300">
-                    <h2 class="text-xl font-bold text-slate-900 uppercase tracking-wide">LAPORAN REKAPITULASI PENGAMBILAN BARANG</h2>
+                    <h2 id="laporan-judul-utama" class="text-xl font-bold text-slate-900 uppercase tracking-wide">LAPORAN REKAPITULASI PENGAMBILAN BARANG</h2>
                     <p id="laporan-judul-periode" class="text-xs font-semibold text-indigo-700 mt-1">PERIODE: OKTOBER 2026</p>
                 </div>
 
@@ -500,7 +512,7 @@
                         <strong id="laporan-stat-lunas" class="text-emerald-600 font-bold">Rp 0</strong>
                     </div>
                     <div>
-                        <span class="text-slate-500 block text-[10px]">Total Keseluruhan Bulan Ini:</span>
+                        <span class="text-slate-500 block text-[10px]">Total Keseluruhan Laporan Ini:</span>
                         <strong id="laporan-stat-total" class="text-indigo-700 font-bold">Rp 0</strong>
                     </div>
                 </div>
@@ -1512,10 +1524,25 @@
         }
 
         // ----------------------------------------------------
-        // REKAPITULASI & LAPORAN BULANAN PER UNIT
+        // REKAPITULASI & LAPORAN BULANAN PER UNIT & STATUS
         // ----------------------------------------------------
+        function toggleInputBulanLaporan() {
+            const statusPilihan = document.getElementById('filter-status-laporan').value;
+            const wrapperBulan = document.getElementById('wrapper-bulan-laporan');
+            const infoStatus = document.getElementById('info-filter-status-laporan');
+
+            if (statusPilihan === 'BELUM') {
+                wrapperBulan.classList.add('opacity-50', 'pointer-events-none');
+                infoStatus.classList.remove('hidden');
+            } else {
+                wrapperBulan.classList.remove('opacity-50', 'pointer-events-none');
+                infoStatus.classList.add('hidden');
+            }
+        }
+
         function bukaModalFilterLaporanBulanan() {
             populateAllUnitDropdowns();
+            toggleInputBulanLaporan();
             document.getElementById('modal-filter-laporan').classList.remove('hidden');
         }
 
@@ -1526,37 +1553,67 @@
         function bukaLaporanBulanan() {
             const bulanThn = document.getElementById('filter-bulan-laporan').value;
             const unitPilihan = document.getElementById('filter-unit-laporan').value;
+            const statusPilihan = document.getElementById('filter-status-laporan').value;
 
-            if (!bulanThn) {
+            if (statusPilihan !== 'BELUM' && !bulanThn) {
                 showToast('Pilih bulan & tahun laporan terlebih dahulu!', 'error');
                 return;
             }
 
             closeModalFilterLaporan();
 
-            const [year, month] = bulanThn.split('-');
-            const namaBulan = new Date(year, month - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+            let namaBulan = '';
+            if (bulanThn) {
+                const [year, month] = bulanThn.split('-');
+                namaBulan = new Date(year, month - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+            }
 
-            document.getElementById('laporan-judul-periode').innerText = 
-                `PERIODE: ${namaBulan.toUpperCase()} ${unitPilihan !== 'SEMUA' ? ' - UNIT: ' + unitPilihan.toUpperCase() : ''}`;
+            // Menyesuaikan judul dan subjudul periode laporan berdasarkan filter status
+            let judulUtama = 'LAPORAN REKAPITULASI PENGAMBILAN BARANG';
+            let subjudulPeriode = `PERIODE: ${namaBulan.toUpperCase()}${unitPilihan !== 'SEMUA' ? ' - UNIT: ' + unitPilihan.toUpperCase() : ''}`;
+
+            if (statusPilihan === 'BELUM') {
+                judulUtama = 'LAPORAN GLOBAL BON BELUM LUNAS';
+                subjudulPeriode = `SEMUA PERIODE (AKUMULASI BELUM LUNAS)${unitPilihan !== 'SEMUA' ? ' - UNIT: ' + unitPilihan.toUpperCase() : ''}`;
+            } else if (statusPilihan === 'LUNAS') {
+                judulUtama = 'LAPORAN PELUNASAN BON BULANAN';
+                subjudulPeriode = `PERIODE PELUNASAN: ${namaBulan.toUpperCase()}${unitPilihan !== 'SEMUA' ? ' - UNIT: ' + unitPilihan.toUpperCase() : ''}`;
+            }
+
+            document.getElementById('laporan-judul-utama').innerText = judulUtama;
+            document.getElementById('laporan-judul-periode').innerText = subjudulPeriode;
 
             const filtered = daftarBon.filter(bon => {
-                const isBulanMatch = bon.tglAmbil.startsWith(bulanThn);
                 const isUnitMatch = (unitPilihan === 'SEMUA') || (bon.unitKerja === unitPilihan);
-                return isBulanMatch && isUnitMatch;
+                if (!isUnitMatch) return false;
+
+                if (statusPilihan === 'BELUM') {
+                    // Tampilkan semua bon yang BELUM LUNAS dari bulan mana pun (global)
+                    return bon.status === 'BELUM';
+                } else if (statusPilihan === 'LUNAS') {
+                    // Tampilkan bon yang LUNAS sesuai bulan pelunasan (atau bulan ambil jika tglLunas kosong)
+                    const tglAcuanLunas = bon.tglLunas || bon.tglAmbil;
+                    return bon.status === 'LUNAS' && tglAcuanLunas.startsWith(bulanThn);
+                } else {
+                    // Semua status: filter berdasarkan bulan pengambilan barang
+                    return bon.tglAmbil.startsWith(bulanThn);
+                }
             });
 
             let totalBon = 0, totalLunas = 0;
             const tbody = document.getElementById('laporan-table-body');
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">Tidak ada transaksi pengambilan barang pada bulan ini.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">Tidak ada data transaksi yang sesuai dengan filter yang dipilih.</td></tr>`;
             } else {
                 tbody.innerHTML = filtered.map((bon, index) => {
                     if (bon.status === 'BELUM') totalBon += bon.totalBayar;
                     else totalLunas += bon.totalBayar;
 
                     const rincianBarang = bon.items.map(i => `${escapeHtml(i.namaBarang)} (${i.qty}x)`).join(', ');
+                    const statusText = bon.status === 'LUNAS'
+                        ? `SUDAH LUNAS${bon.tglLunas ? '<br><span class="font-normal text-[9px] text-slate-500">Tgl: ' + formatTanggal(bon.tglLunas) + '</span>' : ''}`
+                        : 'BELUM LUNAS';
 
                     return `
                         <tr>
@@ -1566,7 +1623,7 @@
                             <td class="p-1.5 border-r border-slate-300 font-medium">${escapeHtml(bon.namaPengambil || '-')}</td>
                             <td class="p-1.5 border-r border-slate-300">${rincianBarang}</td>
                             <td class="p-1.5 border-r border-slate-300 text-right font-medium">Rp ${bon.totalBayar.toLocaleString('id-ID')}</td>
-                            <td class="p-1.5 text-center font-bold ${bon.status === 'LUNAS' ? 'text-emerald-600' : 'text-amber-600'}">${bon.status}</td>
+                            <td class="p-1.5 text-center font-bold ${bon.status === 'LUNAS' ? 'text-emerald-600' : 'text-amber-600'}">${statusText}</td>
                         </tr>
                     `;
                 }).join('');
